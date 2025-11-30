@@ -12,12 +12,19 @@ from adk_agents import (
     example_search_usage,
     example_multi_tool_usage
 )
+from admin_api import router as admin_router
+from web_api import router as web_router
+from database import init_db
 
 app = FastAPI(
     title="Pool AI Knowledge API",
-    description="AI Knowledge Base API with Google ADK Agents / 带有 Google ADK 代理的 AI 知识库 API",
-    version="0.1.0"
+    description="AI Knowledge Base API with Google ADK Agents, Admin Panel, and Web APIs",
+    version="0.2.0"
 )
+
+# Include routers
+app.include_router(admin_router)
+app.include_router(web_router)
 
 # CORS middleware for Flutter frontend
 app.add_middleware(
@@ -50,16 +57,30 @@ class ChatResponse(BaseModel):
 
 @app.get("/")
 async def root():
-    """Root endpoint / 根端点"""
+    """Root endpoint"""
     return {
         "message": "Welcome to Pool AI Knowledge API",
-        "description": "AI Knowledge Base API with Google ADK Agents",
+        "description": "AI Knowledge Base API with Google ADK Agents, Admin Panel, and Web APIs",
+        "version": "0.2.0",
         "endpoints": {
             "agents": "/api/agents",
             "chat": "/api/chat",
-            "examples": "/api/examples/{agent_name}"
+            "examples": "/api/examples/{agent_name}",
+            "admin": "/api/admin",
+            "web": "/api/web",
+            "docs": "/docs"
         }
     }
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database on startup"""
+    try:
+        init_db()
+        print("Database initialized successfully")
+    except Exception as e:
+        print(f"Warning: Database initialization failed: {e}")
 
 
 @app.get("/health")

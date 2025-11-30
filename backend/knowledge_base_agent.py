@@ -74,12 +74,12 @@ class KnowledgeBase:
     In production, you might want to use a vector database like Chroma, Pinecone, or Vertex AI Vector Search
     """
     
-    def __init__(self, storage_path: str = "knowledge_base.json"):
+    def __init__(self, use_mysql: bool = True):
         """
         Initialize knowledge base with RAG (mandatory)
         
         Args:
-            storage_path: Path to JSON file storing posts
+            use_mysql: Whether to load posts from MySQL database (default: True)
         
         Raises:
             RuntimeError: If RAG is not available or OPENAI_API_KEY is not set
@@ -90,7 +90,7 @@ class KnowledgeBase:
                 "Please install: pip install langchain langchain-openai langchain-community"
             )
         
-        self.storage_path = storage_path
+        self.use_mysql = use_mysql
         self.posts: Dict[str, Post] = {}
         
         # Initialize embedding model and vector store (RAG is mandatory)
@@ -98,13 +98,11 @@ class KnowledgeBase:
         self.vector_store = None
         
         try:
-            # Use OpenAI embeddings (no torch required)
-            # Requires OPENAI_API_KEY environment variable
-            openai_api_key = os.getenv('OPENAI_API_KEY')
+            # Get OpenAI API key from database or environment
+            openai_api_key = self._get_openai_api_key()
             if not openai_api_key:
                 raise ValueError(
-                    "OPENAI_API_KEY not found in environment. RAG requires OPENAI_API_KEY. "
-                    "Please set OPENAI_API_KEY in your .env file."
+                    "OPENAI_API_KEY not found. Please set it in the admin panel or environment variable."
                 )
             self.embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
             print("RAG enabled: Using LangChain with OpenAI embeddings for semantic search")
@@ -119,30 +117,93 @@ class KnowledgeBase:
         # Generate embeddings for existing posts
         self._generate_all_embeddings()
     
-    def load_posts(self):
-        """Load posts from storage"""
-        if os.path.exists(self.storage_path):
+    def _get_openai_api_key(self) -> Optional[str]:
+        """Get OpenAI API key from database or environment"""
+        # First try database
+        if self.use_mysql:
             try:
-                with open(self.storage_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    for post_data in data.get('posts', []):
-                        post = Post(**post_data)
-                        self.posts[post.id] = post
-                print(f"Loaded {len(self.posts)} posts from {self.storage_path}")
+                from database import SessionLocal, APIKey
+                db = SessionLocal()
+                try:
+                    api_key = db.query(APIKey).filter(
+                        APIKey.key_type == 'openai',
+                        APIKey.is_active == True
+                    ).first()
+                    if api_key:
+                        return api_key.key_value
+                finally:
+                    db.close()
             except Exception as e:
-                print(f"Error loading posts: {e}")
+                print(f"Warning: Could not load API key from database: {e}")
+        
+        # Fallback to environment variable
+        return os.getenv('OPENAI_API_KEY')
+    
+    def load_posts(self):
+        """Load posts from MySQL database or JSON file"""
+        if self.use_mysql:
+            try:
+                from database import SessionLocal
+                db = SessionLocal()
+                try:
+                    from database import Post as DBPost
+                    db_posts = db.query(DBPost).filter(DBPost.is_active == True).all()
+                    for db_post in db_posts:
+                        tags = db_post.tags.split(",") if db_post.tags else []
+                        post = Post(
+                            id=db_post.id,
+                            title=db_post.title,
+                            content=db_post.content,
+                            tags=tags,
+                            created_at=db_post.created_at.isoformat() if db_post.created_at else None
+                        )
+                        self.posts[post.id] = post
+                    print(f"Loaded {len(self.posts)} posts from MySQL database")
+                finally:
+                    db.close()
+            except Exception as e:
+                print(f"Error loading posts from MySQL: {e}")
+                print("Falling back to empty posts list")
+        else:
+            # Fallback to JSON file (for backward compatibility)
+            storage_path = "knowledge_base.json"
+            if os.path.exists(storage_path):
+                try:
+                    with open(storage_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        for post_data in data.get('posts', []):
+                            post = Post(**post_data)
+                            self.posts[post.id] = post
+                    print(f"Loaded {len(self.posts)} posts from {storage_path}")
+                except Exception as e:
+                    print(f"Error loading posts from JSON: {e}")
     
     def save_posts(self):
-        """Save posts to storage"""
-        try:
-            data = {
-                'posts': [post.model_dump() for post in self.posts.values()]
-            }
-            with open(self.storage_path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            print(f"Saved {len(self.posts)} posts to {self.storage_path}")
-        except Exception as e:
-            print(f"Error saving posts: {e}")
+        """Save posts to MySQL database"""
+        if self.use_mysql:
+            try:
+                from database import SessionLocal
+                from database import Post as DBPost
+                db = SessionLocal()
+                try:
+                    # Posts are saved via admin API, this is just for backward compatibility
+                    print(f"Posts are managed via MySQL database (current count: {len(self.posts)})")
+                finally:
+                    db.close()
+            except Exception as e:
+                print(f"Error saving posts to MySQL: {e}")
+        else:
+            # Fallback to JSON file (for backward compatibility)
+            storage_path = "knowledge_base.json"
+            try:
+                data = {
+                    'posts': [post.model_dump() for post in self.posts.values()]
+                }
+                with open(storage_path, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                print(f"Saved {len(self.posts)} posts to {storage_path}")
+            except Exception as e:
+                print(f"Error saving posts to JSON: {e}")
     
     def add_post(self, post: Post):
         """Add a new post"""
@@ -284,8 +345,8 @@ class KnowledgeBase:
 
 # ==================== ADK Tool for Knowledge Base Search ====================
 
-# Global knowledge base instance
-_knowledge_base = KnowledgeBase()
+# Global knowledge base instance (uses MySQL by default)
+_knowledge_base = KnowledgeBase(use_mysql=True)
 
 
 def search_knowledge_base(query: str, top_k: int = 3) -> Dict:
