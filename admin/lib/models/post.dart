@@ -26,7 +26,7 @@ class Post {
       content: json['content'] ?? '',
       summary: json['summary'],
       tags: json['tags'] != null ? List<String>.from(json['tags']) : null,
-      isPublished: json['is_published'] ?? false,
+      isPublished: json['is_active'] ?? false,
       createdAt:
           json['created_at'] != null ? DateTime.parse(json['created_at']) : null,
       updatedAt:
@@ -97,7 +97,7 @@ class PostListResponse {
   factory PostListResponse.fromJson(Map<String, dynamic> json) {
     return PostListResponse(
       items:
-          (json['items'] as List? ?? []).map((e) => Post.fromJson(e)).toList(),
+          (json['posts'] as List? ?? []).map((e) => Post.fromJson(e)).toList(),
       total: json['total'] ?? 0,
     );
   }
