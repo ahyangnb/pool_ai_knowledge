@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npm install:*)",
-      "Bash(CHOKIDAR_USEPOLLING=true npm run dev:*)"
+      "Bash(CHOKIDAR_USEPOLLING=true npm run dev:*)",
+      "Bash(grep:*)"
     ]
   }
 }

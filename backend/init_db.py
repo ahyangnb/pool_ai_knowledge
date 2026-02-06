@@ -7,15 +7,11 @@ Usage:
     python init_db.py --reset  - Drop and recreate all tables (WARNING: destroys data)
 """
 
-from database import init_db, drop_db
+from database import init_db
 import sys
 
 
 if __name__ == "__main__":
-    if "--reset" in sys.argv:
-        print("WARNING: Dropping all tables...")
-        drop_db()
-
     print("Initializing database...")
     try:
         init_db()

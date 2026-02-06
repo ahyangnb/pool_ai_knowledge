@@ -94,41 +94,27 @@ def get_db():
         db.close()
 
 
+def _run_sql_file(file_name: str):
+    """Execute a SQL file against the database"""
+    sql_path = os.path.join(os.path.dirname(__file__), "sql", file_name)
+    if not os.path.exists(sql_path):
+        print(f"Warning: SQL file not found: {sql_path}")
+        return
+    with open(sql_path, "r", encoding="utf-8") as f:
+        sql = f.read()
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        for statement in sql.split(";"):
+            statement = statement.strip()
+            if statement and not statement.startswith("--"):
+                conn.execute(text(statement))
+        conn.commit()
+
+
 def init_db():
-    """Initialize database tables and create default admin user"""
-    Base.metadata.create_all(bind=engine)
+    """Initialize database: run schema.sql then seed.sql"""
+    _run_sql_file("schema.sql")
     print("Database tables created successfully")
-    _create_default_admin()
-
-
-def _create_default_admin():
-    """Create default admin user if none exists"""
-    from auth import get_password_hash
-
-    db = SessionLocal()
-    try:
-        existing = db.query(AdminUser).first()
-        if existing:
-            return
-        admin = AdminUser(
-            username="admin",
-            email="admin@example.com",
-            password_hash=get_password_hash("admin123456"),
-            is_super_admin=True,
-            is_active=True,
-        )
-        db.add(admin)
-        db.commit()
-        print("Default admin created (username: admin, password: admin123456)")
-    except Exception as e:
-        print(f"Warning: Failed to create default admin: {e}")
-        db.rollback()
-    finally:
-        db.close()
-
-
-def drop_db():
-    """Drop all database tables (use with caution!)"""
-    Base.metadata.drop_all(bind=engine)
-    print("Database tables dropped successfully")
+    _run_sql_file("seed.sql")
+    print("Seed data initialized successfully")
 
