@@ -96,17 +96,21 @@ def get_db():
 
 def _run_sql_file(file_name: str):
     """Execute a SQL file against the database"""
+    import re
     sql_path = os.path.join(os.path.dirname(__file__), "sql", file_name)
     if not os.path.exists(sql_path):
         print(f"Warning: SQL file not found: {sql_path}")
         return
     with open(sql_path, "r", encoding="utf-8") as f:
         sql = f.read()
+    # Strip comments (-- line comments and /* */ block comments)
+    sql = re.sub(r"--[^\n]*", "", sql)
+    sql = re.sub(r"/\*.*?\*/", "", sql, flags=re.DOTALL)
     from sqlalchemy import text
     with engine.connect() as conn:
         for statement in sql.split(";"):
             statement = statement.strip()
-            if statement and not statement.startswith("--"):
+            if statement:
                 conn.execute(text(statement))
         conn.commit()
 

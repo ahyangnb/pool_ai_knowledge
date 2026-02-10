@@ -1,11 +1,7 @@
 -- ============================================================
 -- Pool AI Knowledge - Database Schema
+-- Database is specified by DATABASE_URL in .env
 -- ============================================================
-
-CREATE DATABASE IF NOT EXISTS `pool_ai_knowledge`
-  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-USE `pool_ai_knowledge`;
 
 -- ==================== posts ====================
 CREATE TABLE IF NOT EXISTS `posts` (

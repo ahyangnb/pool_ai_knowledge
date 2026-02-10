@@ -11,7 +11,8 @@
       "Bash(pip install:*)",
       "Bash(python -c:*)",
       "Bash(uvicorn:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(python init_db.py:*)"
     ]
   }
 }

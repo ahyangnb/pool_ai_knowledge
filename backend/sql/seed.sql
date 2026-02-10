@@ -3,8 +3,6 @@
 -- Only inserts when data does not already exist.
 -- ============================================================
 
-USE `pool_ai_knowledge`;
-
 -- Default super admin: admin / admin123456
 INSERT INTO `admin_users` (`username`, `email`, `password_hash`, `is_active`, `is_super_admin`)
 SELECT 'admin', 'admin@example.com',
