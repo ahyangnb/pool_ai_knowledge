@@ -47,26 +47,33 @@ watch(locale, loadRecentPosts)
         <h2>{{ t('home.recentPosts') }}</h2>
         <el-button text type="primary" @click="router.push('/posts')">{{ t('home.viewAll') }}</el-button>
       </div>
-      <el-row :gutter="16" v-loading="loading">
-        <el-col :xs="24" :sm="12" :md="8" v-for="post in recentPosts" :key="post.id">
-          <el-card
-            shadow="hover"
-            class="post-card"
-            @click="router.push(`/posts/${post.id}`)"
-          >
-            <template #header>
-              <span class="post-title">{{ post.title }}</span>
-            </template>
-            <p class="post-excerpt">{{ post.content?.substring(0, 100) }}...</p>
-            <div class="post-meta">
-              <el-tag v-for="tag in post.tags?.slice(0, 3)" :key="tag" size="small" type="info">
-                {{ tag }}
-              </el-tag>
-              <span class="post-date">{{ new Date(post.created_at).toLocaleDateString() }}</span>
-            </div>
-          </el-card>
-        </el-col>
-      </el-row>
+      <div v-loading="loading">
+        <el-row :gutter="16" v-if="recentPosts.length">
+          <el-col :xs="24" :sm="12" :md="8" v-for="post in recentPosts" :key="post.id">
+            <el-card
+              shadow="hover"
+              class="post-card"
+              @click="router.push(`/posts/${post.id}`)"
+            >
+              <template #header>
+                <span class="post-title">{{ post.title }}</span>
+              </template>
+              <p class="post-excerpt">{{ post.content?.substring(0, 100) }}...</p>
+              <div class="post-meta">
+                <el-tag v-for="tag in post.tags?.slice(0, 3)" :key="tag" size="small" type="info">
+                  {{ tag }}
+                </el-tag>
+                <span class="post-date">{{ new Date(post.created_at).toLocaleDateString() }}</span>
+              </div>
+            </el-card>
+          </el-col>
+        </el-row>
+        <el-empty v-else-if="!loading" :description="t('home.noPosts')">
+          <template #image>
+            <el-icon :size="64" color="#c0c4cc"><Document /></el-icon>
+          </template>
+        </el-empty>
+      </div>
     </div>
   </div>
 </template>

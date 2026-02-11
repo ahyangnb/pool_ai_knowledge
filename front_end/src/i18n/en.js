@@ -12,9 +12,11 @@ export default {
     aiChat: 'AI Chat',
     recentPosts: 'Recent Posts',
     viewAll: 'View All',
+    noPosts: 'No posts yet',
   },
   posts: {
     title: 'Posts',
+    noPosts: 'No posts yet',
   },
   detail: {
     back: 'Back',

@@ -14,7 +14,8 @@
       "Bash(curl:*)",
       "Bash(python init_db.py:*)",
       "Bash(kill:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(lsof:*)"
     ]
   }
 }

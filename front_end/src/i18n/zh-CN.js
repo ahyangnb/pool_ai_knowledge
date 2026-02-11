@@ -12,9 +12,11 @@ export default {
     aiChat: 'AI 对话',
     recentPosts: '最新文章',
     viewAll: '查看全部',
+    noPosts: '暂无文章',
   },
   posts: {
     title: '文章列表',
+    noPosts: '暂无文章',
   },
   detail: {
     back: '返回',

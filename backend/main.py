@@ -369,7 +369,7 @@ def _extract_response_from_events(events: List, debug: bool = False) -> dict:
                 for part in event.content.parts:
                     if hasattr(part, 'text') and part.text:
                         parts.append(part.text)
-        response_text = '\n'.join(parts) if parts else "No text response found"
+        response_text = '\n'.join(parts) if parts else "Sorry, I'm unable to generate a response right now. Please try again later."
 
     # Deduplicate references by post_id
     seen = set()

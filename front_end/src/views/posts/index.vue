@@ -40,26 +40,33 @@ watch(locale, () => {
   <div class="posts-page">
     <h2 class="page-title">{{ t('posts.title') }}</h2>
 
-    <el-row :gutter="16" v-loading="loading">
-      <el-col :xs="24" :sm="12" :md="8" v-for="post in posts" :key="post.id">
-        <el-card
-          shadow="hover"
-          class="post-card"
-          @click="router.push(`/posts/${post.id}`)"
-        >
-          <template #header>
-            <span class="post-title">{{ post.title }}</span>
-          </template>
-          <p class="post-excerpt">{{ post.content?.substring(0, 120) }}...</p>
-          <div class="post-meta">
-            <el-tag v-for="tag in post.tags?.slice(0, 3)" :key="tag" size="small" type="info">
-              {{ tag }}
-            </el-tag>
-            <span class="post-date">{{ new Date(post.created_at).toLocaleDateString() }}</span>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
+    <div v-loading="loading">
+      <el-row :gutter="16" v-if="posts.length">
+        <el-col :xs="24" :sm="12" :md="8" v-for="post in posts" :key="post.id">
+          <el-card
+            shadow="hover"
+            class="post-card"
+            @click="router.push(`/posts/${post.id}`)"
+          >
+            <template #header>
+              <span class="post-title">{{ post.title }}</span>
+            </template>
+            <p class="post-excerpt">{{ post.content?.substring(0, 120) }}...</p>
+            <div class="post-meta">
+              <el-tag v-for="tag in post.tags?.slice(0, 3)" :key="tag" size="small" type="info">
+                {{ tag }}
+              </el-tag>
+              <span class="post-date">{{ new Date(post.created_at).toLocaleDateString() }}</span>
+            </div>
+          </el-card>
+        </el-col>
+      </el-row>
+      <el-empty v-else-if="!loading" :description="t('posts.noPosts')">
+        <template #image>
+          <el-icon :size="64" color="#c0c4cc"><Document /></el-icon>
+        </template>
+      </el-empty>
+    </div>
 
     <div class="pagination" v-if="total > pageSize">
       <el-pagination
