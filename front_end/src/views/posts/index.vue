@@ -1,9 +1,11 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { getPosts } from '../../api/posts'
 
 const router = useRouter()
+const { t } = useI18n()
 const posts = ref([])
 const total = ref(0)
 const page = ref(1)
@@ -32,7 +34,7 @@ watch(page, loadPosts)
 
 <template>
   <div class="posts-page">
-    <h2 class="page-title">文章列表</h2>
+    <h2 class="page-title">{{ t('posts.title') }}</h2>
 
     <el-row :gutter="16" v-loading="loading">
       <el-col :xs="24" :sm="12" :md="8" v-for="post in posts" :key="post.id">

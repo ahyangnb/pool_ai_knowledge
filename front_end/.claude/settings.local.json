@@ -3,7 +3,13 @@
     "allow": [
       "Bash(npm create vite:*)",
       "Bash(npm install:*)",
-      "Bash(npx vite build:*)"
+      "Bash(npx vite build:*)",
+      "Bash(/Users/zengyang/Documents/ai_pro/pool_ai_knowledge/backend/venv/bin/pip list:*)",
+      "Bash(/Users/zengyang/Documents/ai_pro/pool_ai_knowledge/backend/venv/bin/pip show:*)",
+      "Bash(/Users/zengyang/Documents/ai_pro/pool_ai_knowledge/backend/venv/bin/python:*)",
+      "Bash(node -e:*)",
+      "Bash(lsof:*)",
+      "Bash(ps:*)"
     ]
   }
 }

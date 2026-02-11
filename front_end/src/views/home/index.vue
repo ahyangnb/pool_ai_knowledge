@@ -1,9 +1,11 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { getPosts } from '../../api/posts'
 
 const router = useRouter()
+const { t } = useI18n()
 const recentPosts = ref([])
 const loading = ref(false)
 
@@ -23,24 +25,24 @@ onMounted(async () => {
 <template>
   <div class="home">
     <div class="hero">
-      <h1>AI 知识库</h1>
-      <p class="hero-desc">浏览文章知识，与 AI 对话获取智能解答</p>
+      <h1>{{ t('home.heroTitle') }}</h1>
+      <p class="hero-desc">{{ t('home.heroDesc') }}</p>
       <div class="hero-actions">
         <el-button type="primary" size="large" @click="router.push('/posts')">
           <el-icon><Document /></el-icon>
-          浏览文章
+          {{ t('home.browsePosts') }}
         </el-button>
         <el-button size="large" @click="router.push('/chat')">
           <el-icon><ChatDotRound /></el-icon>
-          AI 对话
+          {{ t('home.aiChat') }}
         </el-button>
       </div>
     </div>
 
     <div class="section">
       <div class="section-header">
-        <h2>最新文章</h2>
-        <el-button text type="primary" @click="router.push('/posts')">查看全部</el-button>
+        <h2>{{ t('home.recentPosts') }}</h2>
+        <el-button text type="primary" @click="router.push('/posts')">{{ t('home.viewAll') }}</el-button>
       </div>
       <el-row :gutter="16" v-loading="loading">
         <el-col :xs="24" :sm="12" :md="8" v-for="post in recentPosts" :key="post.id">

@@ -12,7 +12,8 @@
       "Bash(python -c:*)",
       "Bash(uvicorn:*)",
       "Bash(curl:*)",
-      "Bash(python init_db.py:*)"
+      "Bash(python init_db.py:*)",
+      "Bash(kill:*)"
     ]
   }
 }

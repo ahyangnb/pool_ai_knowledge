@@ -62,14 +62,22 @@ class ChatRequest(BaseModel):
     """Chat request model / 聊天请求模型"""
     agent_name: str
     message: str
+    post_id: Optional[str] = None
     stream: Optional[bool] = False
+    language: Optional[str] = None
 
+
+class ChatReference(BaseModel):
+    """Referenced article in chat response"""
+    post_id: str
+    title: str
 
 class ChatResponse(BaseModel):
     """Chat response model / 聊天响应模型"""
     agent_name: str
     message: str
     response: str
+    references: List[ChatReference] = []
     status: str
 
 
@@ -189,8 +197,31 @@ async def chat_with_agent(request: ChatRequest):
             session_service=_session_service
         )
         
-        # Create Content object from message / 从消息创建 Content 对象
-        content = runner_types.Content(parts=[{"text": request.message}])
+        # Build message with optional article context
+        message_text = request.message
+        if request.post_id:
+            from database import SessionLocal, Post as DBPost
+            db = SessionLocal()
+            try:
+                post = db.query(DBPost).filter(DBPost.id == request.post_id, DBPost.is_active == True).first()
+                if post:
+                    message_text = (
+                        f"Based on this article:\n"
+                        f"Title: {post.title}\n"
+                        f"Content: {post.content}\n\n"
+                        f"User question: {request.message}"
+                    )
+            finally:
+                db.close()
+
+        # Append language instruction if specified
+        if request.language:
+            lang_names = {"zh-CN": "Chinese (Simplified)", "en": "English"}
+            lang_name = lang_names.get(request.language, request.language)
+            message_text += f"\n\n[IMPORTANT: You MUST respond in {lang_name}.]"
+
+        # Create Content object from message
+        content = runner_types.Content(parts=[{"text": message_text}], role="user")
         
         # Run the agent / 运行代理
         # Use a fixed session ID per agent for simplicity / 为简单起见，每个代理使用固定的会话 ID
@@ -247,20 +278,20 @@ async def chat_with_agent(request: ChatRequest):
         try:
             # Run in thread to avoid blocking / 在线程中运行以避免阻塞
             events = await asyncio.to_thread(run_agent_sync)
-            response_text = _extract_response_from_events(events, debug=not request.stream)
+            result = _extract_response_from_events(events)
         except Exception as run_error:
-            # If run fails, try to get more info / 如果运行失败，尝试获取更多信息
             import traceback
             error_details = traceback.format_exc()
             raise HTTPException(
                 status_code=500,
                 detail=f"Error running agent: {str(run_error)}\nDetails: {error_details[:500]}"
             )
-        
+
         return R.ok(ChatResponse(
             agent_name=request.agent_name,
             message=request.message,
-            response=response_text,
+            response=result["text"],
+            references=[ChatReference(**ref) for ref in result["references"]],
             status="success"
         ).model_dump())
     except Exception as e:
@@ -270,101 +301,84 @@ async def chat_with_agent(request: ChatRequest):
         )
 
 
-def _extract_response_from_events(events: List, debug: bool = False) -> str:
+def _extract_response_from_events(events: List, debug: bool = False) -> dict:
     """
-    Extract text response from agent events / 从代理事件中提取文本响应
-    
-    Args:
-        events: List of events from agent / 来自代理的事件列表
-        debug: Enable debug output / 启用调试输出
-    
+    Extract text response and references from agent events.
+
     Returns:
-        Extracted text response / 提取的文本响应
+        dict with keys "text" and "references"
     """
+    references = []
+    response_text = ""
+
     if not events:
-        return "No response generated - no events received from agent"
-    
-    if debug:
-        print(f"[DEBUG] Processing {len(events)} events")
-    
-    # Method 1: Look for final response event / 方法 1：查找最终响应事件
-    for i, event in enumerate(events):
+        return {"text": "No response generated", "references": []}
+
+    # Pass 1: extract search_knowledge_base function_response results
+    for event in events:
+        if not (hasattr(event, 'content') and event.content and hasattr(event.content, 'parts')):
+            continue
+        for part in event.content.parts:
+            if hasattr(part, 'function_response') and part.function_response:
+                fr = part.function_response
+                if getattr(fr, 'name', '') == 'search_knowledge_base':
+                    try:
+                        resp = fr.response if hasattr(fr, 'response') else {}
+                        # ADK returns protobuf Struct, not plain dict; convert it
+                        if not isinstance(resp, dict):
+                            try:
+                                resp = dict(resp)
+                            except (TypeError, ValueError):
+                                resp = {}
+                        results = resp.get('results', [])
+                        for r in results:
+                            # Convert protobuf MapComposite to dict if needed
+                            if not isinstance(r, dict):
+                                try:
+                                    r = dict(r)
+                                except (TypeError, ValueError):
+                                    continue
+                            if r.get('post_id') and r.get('title'):
+                                references.append({
+                                    "post_id": str(r["post_id"]),
+                                    "title": str(r["title"]),
+                                })
+                    except Exception:
+                        pass
+
+    # Pass 2: extract final text response
+    for event in events:
         try:
             if hasattr(event, 'is_final_response') and event.is_final_response():
-                if debug:
-                    print(f"[DEBUG] Found final response in event {i}")
-                
-                # Extract text from final response / 从最终响应提取文本
-                if hasattr(event, 'content') and event.content:
-                    content = event.content
-                    if hasattr(content, 'parts') and content.parts:
-                        for part in content.parts:
-                            if hasattr(part, 'text') and part.text:
-                                if debug:
-                                    print(f"[DEBUG] Extracted text from final response: {len(part.text)} chars")
-                                return part.text
-        except Exception as e:
-            if debug:
-                print(f"[DEBUG] Error checking is_final_response: {e}")
-    
-    # Method 2: Extract text from all events / 方法 2：从所有事件提取文本
-    response_parts = []
-    
-    for i, event in enumerate(events):
-        if debug:
-            print(f"[DEBUG] Event {i}: {type(event).__name__}")
-        
-        # Check for content with text parts / 检查包含文本部分的 content
-        if hasattr(event, 'content') and event.content:
-            content = event.content
-            
-            # Check if content has parts / 检查 content 是否有 parts
-            if hasattr(content, 'parts') and content.parts:
-                for part in content.parts:
-                    # Extract text from part / 从 part 提取文本
+                if hasattr(event, 'content') and event.content and hasattr(event.content, 'parts'):
+                    for part in event.content.parts:
+                        if hasattr(part, 'text') and part.text:
+                            response_text = part.text
+                            break
+                if response_text:
+                    break
+        except Exception:
+            pass
+
+    # Fallback: collect all text parts
+    if not response_text:
+        parts = []
+        for event in events:
+            if hasattr(event, 'content') and event.content and hasattr(event.content, 'parts'):
+                for part in event.content.parts:
                     if hasattr(part, 'text') and part.text:
-                        response_parts.append(part.text)
-                        if debug:
-                            print(f"[DEBUG] Found text in part: {part.text[:50]}...")
-                    # Skip function calls and responses / 跳过函数调用和响应
-                    elif hasattr(part, 'function_call') or hasattr(part, 'function_response'):
-                        if debug:
-                            print(f"[DEBUG] Skipping function call/response part")
-                        continue
-            
-            # Check if content has text directly / 检查 content 是否直接有 text
-            elif hasattr(content, 'text') and content.text:
-                response_parts.append(content.text)
-                if debug:
-                    print(f"[DEBUG] Found text in content: {content.text[:50]}...")
-        
-        # Check for text attribute directly / 直接检查 text 属性
-        elif hasattr(event, 'text') and event.text:
-            response_parts.append(event.text)
-            if debug:
-                print(f"[DEBUG] Found text attribute: {event.text[:50]}...")
-    
-    # Combine all text parts / 组合所有文本部分
-    if response_parts:
-        response = '\n'.join(response_parts)
-        if debug:
-            print(f"[DEBUG] Extracted response length: {len(response)}")
-        return response
-    
-    # Method 3: Return last event as fallback / 方法 3：返回最后一个事件作为后备
-    last_event = events[-1]
-    if debug:
-        print(f"[DEBUG] No text found, checking last event: {type(last_event).__name__}")
-    
-    # Try to get any text from last event / 尝试从最后一个事件获取任何文本
-    if hasattr(last_event, 'content') and last_event.content:
-        if hasattr(last_event.content, 'parts') and last_event.content.parts:
-            for part in last_event.content.parts:
-                if hasattr(part, 'text') and part.text:
-                    return part.text
-    
-    # Final fallback / 最终后备
-    return f"No text response found in {len(events)} events. Last event type: {type(last_event).__name__}"
+                        parts.append(part.text)
+        response_text = '\n'.join(parts) if parts else "No text response found"
+
+    # Deduplicate references by post_id
+    seen = set()
+    unique_refs = []
+    for ref in references:
+        if ref["post_id"] not in seen:
+            seen.add(ref["post_id"])
+            unique_refs.append(ref)
+
+    return {"text": response_text, "references": unique_refs}
 
 
 @app.get("/api/examples/{agent_name}")

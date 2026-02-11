@@ -367,9 +367,10 @@ async def update_post(
     db.commit()
     db.refresh(post)
 
-    # Trigger RAG update
+    # Trigger RAG update: reload posts from MySQL first, then rebuild vectors
     from knowledge_base_agent import _knowledge_base
     try:
+        _knowledge_base.load_posts()
         _knowledge_base._generate_all_embeddings()
     except Exception as e:
         print(f"Warning: Failed to update RAG vector store: {e}")
@@ -400,4 +401,13 @@ async def delete_post(
 
     db.delete(post)
     db.commit()
+
+    # Trigger RAG update: reload posts and rebuild vectors
+    from knowledge_base_agent import _knowledge_base
+    try:
+        _knowledge_base.load_posts()
+        _knowledge_base._generate_all_embeddings()
+    except Exception as e:
+        print(f"Warning: Failed to update RAG vector store: {e}")
+
     return R.ok()

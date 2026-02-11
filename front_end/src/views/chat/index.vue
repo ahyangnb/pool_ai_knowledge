@@ -1,28 +1,82 @@
 <script setup>
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { chatWithAgent } from '../../api/chat'
+import { getPosts } from '../../api/posts'
 
+const route = useRoute()
+const router = useRouter()
+const { t, locale } = useI18n()
 const inputMessage = ref('')
 const messages = ref([])
 const loading = ref(false)
 const chatContainer = ref(null)
 
+// Article context
+const selectedPostId = ref(null)
+const selectedPostTitle = ref('')
+const postOptions = ref([])
+const postsLoading = ref(false)
+
+onMounted(async () => {
+  postsLoading.value = true
+  try {
+    const data = await getPosts({ skip: 0, limit: 100 })
+    postOptions.value = data.posts
+  } catch (e) {
+    console.error('Failed to load posts:', e)
+  } finally {
+    postsLoading.value = false
+  }
+
+  if (route.query.postId) {
+    selectedPostId.value = route.query.postId
+    selectedPostTitle.value = route.query.postTitle || ''
+  }
+})
+
+function onPostChange(postId) {
+  if (postId) {
+    const post = postOptions.value.find((p) => p.id === postId)
+    selectedPostTitle.value = post?.title || ''
+  } else {
+    selectedPostTitle.value = ''
+  }
+}
+
+function clearPostContext() {
+  selectedPostId.value = null
+  selectedPostTitle.value = ''
+}
+
 async function sendMessage() {
   const text = inputMessage.value.trim()
   if (!text || loading.value) return
 
-  messages.value.push({ role: 'user', content: text })
+  const userMsg = { role: 'user', content: text }
+  if (selectedPostId.value) {
+    userMsg.postTitle = selectedPostTitle.value
+  }
+  messages.value.push(userMsg)
   inputMessage.value = ''
   loading.value = true
   scrollToBottom()
 
   try {
-    const data = await chatWithAgent(text)
-    messages.value.push({ role: 'assistant', content: data.response })
+    const data = await chatWithAgent(text, {
+      postId: selectedPostId.value,
+      language: locale.value,
+    })
+    const assistantMsg = { role: 'assistant', content: data.response }
+    if (data.references?.length) {
+      assistantMsg.references = data.references
+    }
+    messages.value.push(assistantMsg)
   } catch (e) {
     messages.value.push({
       role: 'assistant',
-      content: '抱歉，请求失败，请稍后重试。',
+      content: t('chat.error'),
       error: true,
     })
   } finally {
@@ -49,14 +103,45 @@ function handleKeydown(e) {
 
 <template>
   <div class="chat-page">
-    <h2 class="page-title">AI 知识问答</h2>
-    <p class="page-desc">基于知识库文章内容，AI 将为你提供智能解答</p>
+    <h2 class="page-title">{{ t('chat.title') }}</h2>
+    <p class="page-desc">{{ t('chat.desc') }}</p>
+
+    <!-- Article context selector -->
+    <div class="context-bar">
+      <el-select
+        v-model="selectedPostId"
+        :placeholder="t('chat.selectPost')"
+        clearable
+        filterable
+        :loading="postsLoading"
+        @change="onPostChange"
+        class="post-select"
+      >
+        <el-option
+          v-for="post in postOptions"
+          :key="post.id"
+          :label="post.title"
+          :value="post.id"
+        />
+      </el-select>
+      <el-tag
+        v-if="selectedPostId"
+        type="success"
+        closable
+        @close="clearPostContext"
+        class="context-tag"
+      >
+        <el-icon><Document /></el-icon>
+        {{ t('chat.contextPrefix') }}: {{ selectedPostTitle }}
+      </el-tag>
+    </div>
 
     <div class="chat-box">
       <div class="chat-messages" ref="chatContainer">
         <div v-if="messages.length === 0" class="chat-empty">
           <el-icon :size="48" color="#c0c4cc"><ChatDotRound /></el-icon>
-          <p>输入你的问题，开始对话</p>
+          <p>{{ t('chat.emptyHint') }}</p>
+          <p class="chat-empty-hint">{{ t('chat.emptySubHint') }}</p>
         </div>
 
         <div
@@ -69,8 +154,23 @@ function handleKeydown(e) {
             <el-icon v-if="msg.role === 'user'" :size="20"><User /></el-icon>
             <el-icon v-else :size="20"><Monitor /></el-icon>
           </div>
-          <div class="message-bubble" :class="{ error: msg.error }">
-            {{ msg.content }}
+          <div class="message-content">
+            <div v-if="msg.postTitle" class="message-context">
+              <el-icon :size="12"><Document /></el-icon>
+              {{ msg.postTitle }}
+            </div>
+            <div class="message-bubble" :class="{ error: msg.error }">
+              {{ msg.content }}
+            </div>
+            <div v-if="msg.references?.length" class="message-refs">
+              <el-icon :size="12"><Link /></el-icon>
+              <span
+                v-for="ref in msg.references"
+                :key="ref.post_id"
+                class="ref-link"
+                @click="router.push(`/posts/${ref.post_id}`)"
+              >{{ ref.title }}</span>
+            </div>
           </div>
         </div>
 
@@ -89,7 +189,7 @@ function handleKeydown(e) {
           v-model="inputMessage"
           type="textarea"
           :rows="2"
-          placeholder="输入你的问题... (Enter 发送, Shift+Enter 换行)"
+          :placeholder="selectedPostId ? t('chat.placeholderWithPost', { title: selectedPostTitle }) : t('chat.placeholder')"
           @keydown="handleKeydown"
           :disabled="loading"
         />
@@ -99,7 +199,7 @@ function handleKeydown(e) {
           @click="sendMessage"
           :disabled="!inputMessage.trim()"
         >
-          发送
+          {{ t('chat.send') }}
         </el-button>
       </div>
     </div>
@@ -114,7 +214,25 @@ function handleKeydown(e) {
 .page-desc {
   color: #666;
   font-size: 14px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+}
+
+.context-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.post-select {
+  width: 360px;
+}
+
+.context-tag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .chat-box {
@@ -124,7 +242,7 @@ function handleKeydown(e) {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 240px);
+  height: calc(100vh - 300px);
   min-height: 400px;
 }
 
@@ -142,6 +260,10 @@ function handleKeydown(e) {
   height: 100%;
   color: #c0c4cc;
   gap: 12px;
+}
+
+.chat-empty-hint {
+  font-size: 13px;
 }
 
 .message {
@@ -170,8 +292,47 @@ function handleKeydown(e) {
   color: var(--el-color-primary);
 }
 
-.message-bubble {
+.message-content {
   max-width: 70%;
+}
+
+.message-context {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--el-color-success);
+  margin-bottom: 4px;
+}
+
+.message-refs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #999;
+}
+
+.ref-link {
+  color: var(--el-color-primary);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dashed;
+  text-underline-offset: 2px;
+}
+
+.ref-link:hover {
+  color: var(--el-color-primary-dark-2);
+  text-decoration-style: solid;
+}
+
+.message.user .message-context {
+  justify-content: flex-end;
+}
+
+.message-bubble {
   padding: 10px 16px;
   border-radius: 12px;
   font-size: 14px;

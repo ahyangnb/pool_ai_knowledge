@@ -1,10 +1,12 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { getPost } from '../../api/posts'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const post = ref(null)
 const loading = ref(false)
 
@@ -24,7 +26,7 @@ onMounted(async () => {
   <div class="post-detail" v-loading="loading">
     <el-button text @click="router.back()" class="back-btn">
       <el-icon><ArrowLeft /></el-icon>
-      返回
+      {{ t('detail.back') }}
     </el-button>
 
     <template v-if="post">
@@ -40,15 +42,15 @@ onMounted(async () => {
 
       <el-divider />
       <div class="chat-cta">
-        <p>对这篇文章有疑问？</p>
-        <el-button type="primary" @click="router.push('/chat')">
+        <p>{{ t('detail.chatCta') }}</p>
+        <el-button type="primary" @click="router.push({ path: '/chat', query: { postId: post.id, postTitle: post.title } })">
           <el-icon><ChatDotRound /></el-icon>
-          向 AI 提问
+          {{ t('detail.askAi') }}
         </el-button>
       </div>
     </template>
 
-    <el-empty v-else-if="!loading" description="文章不存在" />
+    <el-empty v-else-if="!loading" :description="t('detail.notFound')" />
   </div>
 </template>
 
