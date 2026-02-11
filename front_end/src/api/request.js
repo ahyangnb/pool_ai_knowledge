@@ -5,6 +5,20 @@ const request = axios.create({
   timeout: 30000,
 })
 
+request.interceptors.request.use((config) => {
+  const language = localStorage.getItem('language') || 'zh-CN'
+  if (config.method === 'get') {
+    config.params = { ...config.params, language }
+  } else if (config.data && typeof config.data === 'object') {
+    if (!config.data.language) {
+      config.data = { ...config.data, language }
+    }
+  } else if (!config.data) {
+    config.data = { language }
+  }
+  return config
+})
+
 request.interceptors.response.use(
   (response) => {
     const res = response.data

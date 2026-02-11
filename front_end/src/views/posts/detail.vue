@@ -1,16 +1,16 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getPost } from '../../api/posts'
 
 const route = useRoute()
 const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const post = ref(null)
 const loading = ref(false)
 
-onMounted(async () => {
+async function loadPost() {
   loading.value = true
   try {
     post.value = await getPost(route.params.id)
@@ -19,7 +19,10 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-})
+}
+
+onMounted(loadPost)
+watch(locale, loadPost)
 </script>
 
 <template>

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, nextTick, onMounted } from 'vue'
+import { ref, nextTick, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { chatWithAgent } from '../../api/chat'
@@ -19,7 +19,7 @@ const selectedPostTitle = ref('')
 const postOptions = ref([])
 const postsLoading = ref(false)
 
-onMounted(async () => {
+async function loadPostOptions() {
   postsLoading.value = true
   try {
     const data = await getPosts({ skip: 0, limit: 100 })
@@ -29,12 +29,16 @@ onMounted(async () => {
   } finally {
     postsLoading.value = false
   }
+}
 
+onMounted(async () => {
+  await loadPostOptions()
   if (route.query.postId) {
     selectedPostId.value = route.query.postId
     selectedPostTitle.value = route.query.postTitle || ''
   }
 })
+watch(locale, loadPostOptions)
 
 function onPostChange(postId) {
   if (postId) {

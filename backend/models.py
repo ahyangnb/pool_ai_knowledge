@@ -31,6 +31,7 @@ class PostCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=500)
     content: str = Field(..., min_length=1)
     tags: Optional[List[str]] = Field(default_factory=list)
+    language: str = Field(default="zh-CN", max_length=10)
 
 
 class PostUpdate(BaseModel):
@@ -39,6 +40,7 @@ class PostUpdate(BaseModel):
     content: Optional[str] = Field(None, min_length=1)
     tags: Optional[List[str]] = None
     is_active: Optional[bool] = None
+    language: Optional[str] = Field(None, max_length=10)
 
 
 class PostResponse(BaseModel):
@@ -47,6 +49,7 @@ class PostResponse(BaseModel):
     title: str
     content: str
     tags: List[str]
+    language: str = "zh-CN"
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     is_active: bool
@@ -138,6 +141,7 @@ class SearchRequest(BaseModel):
     """Search request model"""
     query: str = Field(..., min_length=1)
     top_k: int = Field(default=3, ge=1, le=20)
+    language: Optional[str] = None
 
 
 class SearchResult(BaseModel):

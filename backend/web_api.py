@@ -19,11 +19,15 @@ router = APIRouter(prefix="/api/web", tags=["Web"])
 async def list_posts(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
+    language: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    """List active posts (public access)"""
-    posts = db.query(Post).filter(Post.is_active == True).offset(skip).limit(limit).all()
-    total = db.query(Post).filter(Post.is_active == True).count()
+    """List active posts (public access), optionally filtered by language"""
+    query = db.query(Post).filter(Post.is_active == True)
+    if language:
+        query = query.filter(Post.language == language)
+    posts = query.offset(skip).limit(limit).all()
+    total = query.count()
 
     post_list = []
     for post in posts:
@@ -33,6 +37,7 @@ async def list_posts(
             title=post.title,
             content=post.content,
             tags=tags,
+            language=post.language or "zh-CN",
             created_at=post.created_at,
             updated_at=post.updated_at,
             is_active=post.is_active
@@ -55,6 +60,7 @@ async def get_post(post_id: str, db: Session = Depends(get_db)):
         title=post.title,
         content=post.content,
         tags=tags,
+        language=post.language or "zh-CN",
         created_at=post.created_at,
         updated_at=post.updated_at,
         is_active=post.is_active
@@ -66,9 +72,11 @@ async def get_post(post_id: str, db: Session = Depends(get_db)):
 
 @router.post("/search")
 async def search_posts(search_request: SearchRequest):
-    """Search posts using RAG (public access)"""
+    """Search posts using RAG (public access), optionally filtered by language"""
     try:
-        result = search_knowledge_base(search_request.query, search_request.top_k)
+        result = search_knowledge_base(
+            search_request.query, search_request.top_k, language=search_request.language
+        )
         return R.ok(result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
@@ -77,11 +85,12 @@ async def search_posts(search_request: SearchRequest):
 @router.get("/search")
 async def search_posts_get(
     query: str = Query(..., min_length=1),
-    top_k: int = Query(3, ge=1, le=20)
+    top_k: int = Query(3, ge=1, le=20),
+    language: Optional[str] = Query(None),
 ):
-    """Search posts using RAG (GET method, public access)"""
+    """Search posts using RAG (GET method, public access), optionally filtered by language"""
     try:
-        result = search_knowledge_base(query, top_k)
+        result = search_knowledge_base(query, top_k, language=language)
         return R.ok(result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")

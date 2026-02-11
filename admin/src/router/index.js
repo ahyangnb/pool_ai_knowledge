@@ -86,6 +86,30 @@ export const constantRoutes = [
     ]
   },
   {
+    path: '/model',
+    component: Layout,
+    children: [
+      {
+        path: 'index',
+        component: () => import('@/views/model/index'),
+        name: 'ModelManagement',
+        meta: { title: '模型管理', icon: 'el-icon-cpu' }
+      }
+    ]
+  },
+  {
+    path: '/api-key',
+    component: Layout,
+    children: [
+      {
+        path: 'index',
+        component: () => import('@/views/api-key/index'),
+        name: 'ApiKeyManagement',
+        meta: { title: 'API Key 管理', icon: 'el-icon-key' }
+      }
+    ]
+  },
+  {
     path: '/settings',
     component: Layout,
     children: [

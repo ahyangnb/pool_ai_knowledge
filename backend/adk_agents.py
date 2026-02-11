@@ -10,6 +10,7 @@ import os
 from google.adk.agents import Agent
 from google.adk.tools import google_search
 from knowledge_base_agent import create_knowledge_base_agent
+from database import get_current_model
 
 
 # ==================== Custom Tools 自定义工具 ====================
@@ -115,7 +116,7 @@ def create_calculator_agent() -> Agent:
         Agent instance configured for calculations / 配置用于计算的代理实例
     """
     return Agent(
-        model='gemini-2.0-flash',
+        model=get_current_model(),
         name='calculator_agent',
         description="A helpful calculator agent that can perform mathematical calculations. / 一个可以进行数学计算的有用计算器代理",
         instruction="""
@@ -138,7 +139,7 @@ def create_time_agent() -> Agent:
         Agent instance configured for time queries / 配置用于时间查询的代理实例
     """
     return Agent(
-        model='gemini-2.0-flash',
+        model=get_current_model(),
         name='time_agent',
         description="Provides current time information in various timezones. / 提供各种时区的当前时间信息",
         instruction="""
@@ -161,7 +162,7 @@ def create_text_processing_agent() -> Agent:
         Agent instance configured for text processing / 配置用于文本处理的代理实例
     """
     return Agent(
-        model='gemini-2.0-flash',
+        model=get_current_model(),
         name='text_processing_agent',
         description="Processes and formats text in various ways. / 以各种方式处理和格式化文本",
         instruction="""
@@ -183,7 +184,7 @@ def create_search_agent() -> Agent:
         Agent instance configured for web searches / 配置用于网络搜索的代理实例
     """
     return Agent(
-        model='gemini-2.0-flash',
+        model=get_current_model(),
         name='search_agent',
         description="An assistant that can search the web using Google Search. / 可以使用 Google 搜索搜索网络的助手",
         instruction="""
@@ -206,7 +207,7 @@ def create_multi_tool_agent() -> Agent:
         Agent instance with all available tools / 具有所有可用工具的代理实例
     """
     return Agent(
-        model='gemini-2.0-flash',
+        model=get_current_model(),
         name='multi_tool_agent',
         description="A versatile assistant with multiple capabilities including calculation, time, text processing, and web search. / 具有多种功能的多功能助手，包括计算、时间、文本处理和网络搜索",
         instruction="""
@@ -234,14 +235,26 @@ def create_multi_tool_agent() -> Agent:
 
 # ==================== Agent Registry 代理注册表 ====================
 
-AGENT_REGISTRY: Dict[str, Agent] = {
-    "calculator": create_calculator_agent(),
-    "time": create_time_agent(),
-    "text": create_text_processing_agent(),
-    "search": create_search_agent(),
-    "multi": create_multi_tool_agent(),
-    "knowledge": create_knowledge_base_agent(),  # Knowledge base agent / 知识库代理
-}
+def _build_registry() -> Dict[str, Agent]:
+    """Build the agent registry with the current model setting."""
+    return {
+        "calculator": create_calculator_agent(),
+        "time": create_time_agent(),
+        "text": create_text_processing_agent(),
+        "search": create_search_agent(),
+        "multi": create_multi_tool_agent(),
+        "knowledge": create_knowledge_base_agent(),
+    }
+
+
+AGENT_REGISTRY: Dict[str, Agent] = _build_registry()
+
+
+def rebuild_agents():
+    """Rebuild all agents (e.g. after model change)."""
+    global AGENT_REGISTRY
+    AGENT_REGISTRY = _build_registry()
+    print(f"Agents rebuilt with model: {get_current_model()}")
 
 
 def get_agent(agent_name: str) -> Optional[Agent]:

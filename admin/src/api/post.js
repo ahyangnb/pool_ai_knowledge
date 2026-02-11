@@ -3,7 +3,8 @@ import request from '@/utils/request'
 export function fetchPostList(query) {
   const params = {
     skip: ((query.page || 1) - 1) * (query.limit || 20),
-    limit: query.limit || 20
+    limit: query.limit || 20,
+    ...(query.language ? { language: query.language } : {})
   }
   return request({
     url: '/api/admin/posts',

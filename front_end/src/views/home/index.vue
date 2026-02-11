@@ -1,15 +1,15 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getPosts } from '../../api/posts'
 
 const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const recentPosts = ref([])
 const loading = ref(false)
 
-onMounted(async () => {
+async function loadRecentPosts() {
   loading.value = true
   try {
     const data = await getPosts({ skip: 0, limit: 6 })
@@ -19,7 +19,10 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-})
+}
+
+onMounted(loadRecentPosts)
+watch(locale, loadRecentPosts)
 </script>
 
 <template>

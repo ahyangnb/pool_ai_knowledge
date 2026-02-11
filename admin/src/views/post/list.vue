@@ -1,6 +1,10 @@
 <template>
   <div class="app-container">
     <div class="filter-container">
+      <el-select v-model="listQuery.language" placeholder="语言筛选" clearable style="width: 140px; margin-right: 10px;" @change="handleFilter">
+        <el-option label="中文" value="zh-CN" />
+        <el-option label="English" value="en" />
+      </el-select>
       <el-button type="primary" icon="el-icon-plus" @click="handleCreate">
         新增帖子
       </el-button>
@@ -18,6 +22,14 @@
           <router-link :to="'/post/edit/' + row.id" class="link-type">
             <span>{{ row.title }}</span>
           </router-link>
+        </template>
+      </el-table-column>
+
+      <el-table-column width="100px" align="center" label="语言">
+        <template slot-scope="{ row }">
+          <el-tag :type="row.language === 'zh-CN' ? '' : 'warning'" size="small">
+            {{ row.language === 'zh-CN' ? '中文' : row.language === 'en' ? 'English' : (row.language || '-') }}
+          </el-tag>
         </template>
       </el-table-column>
 
@@ -85,7 +97,8 @@ export default {
       listLoading: true,
       listQuery: {
         page: 1,
-        limit: 20
+        limit: 20,
+        language: ''
       }
     }
   },
@@ -102,6 +115,10 @@ export default {
       }).catch(() => {
         this.listLoading = false
       })
+    },
+    handleFilter() {
+      this.listQuery.page = 1
+      this.getList()
     },
     handleCreate() {
       this.$router.push('/post/create')

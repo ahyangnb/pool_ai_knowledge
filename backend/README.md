@@ -1,155 +1,202 @@
-# Backend API
+# Pool AI Knowledge - Backend
 
-FastAPI backend for Pool AI Knowledge Base with Google ADK (Agent Development Kit) integration.
+English | [中文](README_ZH.md)
 
-## Setup
+A FastAPI backend providing a RAG-based knowledge base with Google ADK agent integration, admin management, and multilingual content support.
 
-1. Install dependencies:
+## Features
+
+- **RAG Semantic Search** — OpenAI Embeddings + FAISS vector index for intelligent content matching
+- **AI Agent Chat** — Google ADK + Gemini models, with knowledge base Q&A, calculator, search, and more
+- **Admin Panel API** — JWT-protected endpoints for managing posts, API keys, and model selection
+- **Multilingual Support** — Posts tagged with language (zh-CN / en / ja, etc.), filterable in search and listing
+- **One-click Deploy** — Linux install script with systemd service
+
+## Quick Start
+
+### Requirements
+
+- Python >= 3.10
+- MySQL >= 5.7
+- OpenAI API Key (required for RAG)
+- Google API Key (required for agents)
+
+### Local Development
+
 ```bash
+# 1. Create virtual environment
+python -m venv venv && source venv/bin/activate
+
+# 2. Install dependencies
 pip install -r requirements.txt
+
+# 3. Configure environment
+cp .env.example .env
+# Edit .env with your database URL and API keys
+
+# 4. Initialize database
+python init_db.py
+
+# 5. Start server
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-2. Set up environment variables:
-Create a `.env` file in the project root:
+### Linux Server Deployment
+
 ```bash
-GOOGLE_API_KEY=your_api_key_here
-OPENAI_API_KEY=your_openai_api_key_here  # Required for RAG functionality
+# Full install (includes MySQL)
+sudo chmod +x setup.sh
+sudo ./setup.sh
+
+# App only (existing MySQL)
+sudo ./setup.sh --app-only
 ```
 
-You can get your API keys from:
-- Google API key: [Google AI Studio](https://makersuite.google.com/app/apikey)
-- OpenAI API key: [OpenAI Platform](https://platform.openai.com/api-keys)
+After installation:
+- API: `http://<server-ip>:8000`
+- Docs: `http://<server-ip>:8000/docs`
+- Default admin: `admin` / `admin123456`
 
-Note: RAG functionality requires OPENAI_API_KEY. Without it, the system will use keyword matching instead.
+## Environment Variables
 
-3. Run the server:
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `DATABASE_URL` | MySQL connection string | Yes |
+| `OPENAI_API_KEY` | OpenAI API Key for RAG embeddings | Yes |
+| `GOOGLE_API_KEY` | Google API Key for Gemini agents | Yes |
+| `SECRET_KEY` | JWT signing key | Yes |
+
+> API keys can also be configured via the admin API. Database values take priority over .env.
+
+## API Overview
+
+### Authentication
+
+All `/api/admin/*` endpoints require a JWT token:
+
 ```bash
-python main.py
+# Login
+curl -X POST /api/admin/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "admin123456"}'
 ```
 
-Or with uvicorn directly:
+### Post Management
+
 ```bash
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+# Create post (with language)
+POST /api/admin/posts
+{"title": "Title", "content": "Content", "tags": ["tag1"], "language": "en"}
+
+# List (filter by language)
+GET /api/admin/posts?language=en&skip=0&limit=20
+
+# Update
+PUT /api/admin/posts/{id}
+
+# Delete
+DELETE /api/admin/posts/{id}
 ```
 
-## API Documentation
+### Public API
 
-Once running, visit:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-
-## ADK Agents
-
-This project includes several pre-configured ADK agents with different capabilities:
-
-### Available Agents
-
-1. **calculator** - Performs mathematical calculations
-2. **time** - Provides current time information
-3. **text** - Processes and formats text
-4. **search** - Searches the web using Google Search
-5. **multi** - Multi-tool agent with all capabilities
-
-### API Endpoints
-
-#### List Available Agents
 ```bash
-GET /api/agents
+# List posts (filter by language)
+GET /api/web/posts?language=zh-CN
+
+# Semantic search (filter by language)
+GET /api/web/search?query=Python+tutorial&language=en
+POST /api/web/search
+{"query": "Python tutorial", "top_k": 5, "language": "en"}
 ```
 
-#### Chat with an Agent
+### AI Chat
+
 ```bash
+# Chat with knowledge base agent
 POST /api/chat
-Content-Type: application/json
-
 {
-  "agent_name": "calculator",
-  "message": "What is 25 * 4?",
-  "stream": false
+  "agent_name": "knowledge",
+  "message": "How do I use Python virtual environments?",
+  "language": "en"
 }
 ```
 
-#### Get Agent Examples
-```bash
-GET /api/examples/{agent_name}
-```
-
-#### Get Agent Info
-```bash
-GET /api/agents/{agent_name}/info
-```
-
-### Example Usage
-
-#### Using Python
-
-```python
-from adk_agents import get_agent
-
-# Get an agent
-agent = get_agent("calculator")
-
-# Run a query
-response = await agent.run("What is 25 * 4?")
-print(response)
-
-# Stream responses
-async for chunk in agent.stream("Calculate 100 / 5"):
-    print(chunk, end="")
-```
-
-#### Using the API
+### API Key Management
 
 ```bash
-# List all agents
-curl http://localhost:8000/api/agents
+# View effective keys (masked)
+GET /api/admin/api-keys/effective
 
-# Chat with calculator agent
-curl -X POST http://localhost:8000/api/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "agent_name": "calculator",
-    "message": "What is 25 * 4?"
-  }'
+# Create key
+POST /api/admin/api-keys
+{"key_type": "openai", "key_name": "OpenAI Key", "key_value": "sk-xxx"}
 
-# Get examples
-curl http://localhost:8000/api/examples/calculator
+# List / Update / Delete
+GET    /api/admin/api-keys
+PUT    /api/admin/api-keys/{id}
+DELETE /api/admin/api-keys/{id}
 ```
 
-### Running Examples
-
-Run the example script to see all agents in action:
+### Model Management
 
 ```bash
-python examples.py
+# List available models + current
+GET /api/admin/models
+
+# Switch model
+PUT /api/admin/models/current
+{"model": "gemini-2.5-flash-preview-04-17"}
 ```
 
-This will demonstrate:
-- Calculator agent usage
-- Time agent usage
-- Text processing agent usage
-- Search agent usage
-- Multi-tool agent usage
-- Streaming responses
+### Available Agents
 
-## Custom Tools
-
-The project includes several custom tools:
-
-- `calculate(expression)` - Evaluates mathematical expressions
-- `get_current_time(timezone)` - Gets current time
-- `format_text(text, format_type)` - Formats text
-- `word_count(text)` - Counts words and characters
-
-You can create your own agents with these tools or add new custom tools.
+| Agent | Description |
+|-------|-------------|
+| `knowledge` | Knowledge base Q&A (RAG semantic search) |
+| `calculator` | Mathematical calculations |
+| `time` | Time queries |
+| `text` | Text processing |
+| `search` | Web search |
+| `multi` | Multi-tool combined |
 
 ## Project Structure
 
 ```
 backend/
-├── main.py              # FastAPI application
-├── adk_agents.py        # ADK agent definitions
-├── examples.py          # Usage examples
-├── requirements.txt     # Dependencies
-└── README.md           # This file
+├── main.py                  # FastAPI app, global handlers, chat endpoints
+├── admin_api.py             # Admin API (JWT protected)
+├── web_api.py               # Public API
+├── auth.py                  # JWT auth + bcrypt passwords
+├── models.py                # Pydantic request/response models
+├── database.py              # SQLAlchemy ORM + utility functions
+├── adk_agents.py            # Google ADK agent definitions
+├── knowledge_base_agent.py  # RAG knowledge base agent
+├── init_db.py               # Database initialization script
+├── setup.sh                 # Linux one-click deploy script
+├── requirements.txt         # Python dependencies
+├── sql/
+│   ├── schema.sql           # Table creation
+│   └── seed.sql             # Seed data
+└── .env.example             # Environment variable template
 ```
+
+## Service Management
+
+```bash
+# Status
+sudo systemctl status pool_ai_knowledge
+
+# Restart
+sudo systemctl restart pool_ai_knowledge
+
+# Logs
+sudo journalctl -u pool_ai_knowledge -f
+
+# Stop
+sudo systemctl stop pool_ai_knowledge
+```
+
+## License
+
+MIT

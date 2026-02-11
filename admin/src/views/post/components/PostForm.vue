@@ -5,6 +5,13 @@
         <el-input v-model="postForm.title" placeholder="请输入帖子标题" maxlength="200" show-word-limit />
       </el-form-item>
 
+      <el-form-item label="语言" prop="language">
+        <el-select v-model="postForm.language" placeholder="请选择语言">
+          <el-option label="中文" value="zh-CN" />
+          <el-option label="English" value="en" />
+        </el-select>
+      </el-form-item>
+
       <el-form-item label="标签">
         <el-tag
           v-for="tag in postForm.tags"
@@ -60,6 +67,7 @@ export default {
       postForm: {
         title: '',
         content: '',
+        language: 'zh-CN',
         tags: []
       },
       loading: false,
@@ -67,7 +75,8 @@ export default {
       tagInputValue: '',
       rules: {
         title: [{ required: true, message: '请输入标题', trigger: 'blur' }],
-        content: [{ required: true, message: '请输入内容', trigger: 'blur' }]
+        content: [{ required: true, message: '请输入内容', trigger: 'blur' }],
+        language: [{ required: true, message: '请选择语言', trigger: 'change' }]
       }
     }
   },

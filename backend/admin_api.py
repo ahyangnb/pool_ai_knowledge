@@ -4,11 +4,14 @@ Admin API endpoints for managing API keys and posts
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 import uuid
 from datetime import datetime
 
-from database import get_db, APIKey, Post, AdminUser
+from database import (
+    get_db, APIKey, Post, AdminUser, sync_api_keys_to_env,
+    get_current_model, set_current_model, AVAILABLE_MODELS,
+)
 from models import (
     R,
     APIKeyCreate, APIKeyUpdate, APIKeyResponse, APIKeyListResponse,
@@ -96,6 +99,44 @@ async def create_admin_user(
 
 # ==================== API Key Management ====================
 
+@router.get("/api-keys/effective")
+async def get_effective_api_keys(
+    current_admin: AdminUser = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Get currently effective API key settings (masked values)"""
+    import os
+    env_map = {"openai": "OPENAI_API_KEY", "google": "GOOGLE_API_KEY"}
+    result = {}
+    for key_type, env_name in env_map.items():
+        # Check database first
+        db_key = db.query(APIKey).filter(
+            APIKey.key_type == key_type, APIKey.is_active == True
+        ).first()
+        if db_key and db_key.key_value:
+            result[key_type] = {
+                "configured": True,
+                "masked_value": mask_api_key(db_key.key_value),
+                "source": "database",
+                "key_name": db_key.key_name,
+            }
+        elif os.getenv(env_name):
+            result[key_type] = {
+                "configured": True,
+                "masked_value": mask_api_key(os.getenv(env_name)),
+                "source": "env",
+                "key_name": env_name,
+            }
+        else:
+            result[key_type] = {
+                "configured": False,
+                "masked_value": None,
+                "source": None,
+                "key_name": None,
+            }
+    return R.ok(result)
+
+
 @router.get("/api-keys")
 async def list_api_keys(
     skip: int = 0,
@@ -142,6 +183,7 @@ async def create_api_key(
     db.add(api_key)
     db.commit()
     db.refresh(api_key)
+    sync_api_keys_to_env()
 
     resp = APIKeyResponse(
         id=api_key.id,
@@ -206,6 +248,7 @@ async def update_api_key(
     api_key.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(api_key)
+    sync_api_keys_to_env()
 
     resp = APIKeyResponse(
         id=api_key.id,
@@ -234,6 +277,7 @@ async def delete_api_key(
 
     db.delete(api_key)
     db.commit()
+    sync_api_keys_to_env()
     return R.ok()
 
 
@@ -244,18 +288,70 @@ def mask_api_key(key_value: str) -> str:
     return f"{key_value[:4]}...{key_value[-4:]}"
 
 
+# ==================== Model Management ====================
+
+@router.get("/models")
+async def list_models(
+    current_admin: AdminUser = Depends(get_current_admin),
+):
+    """List available AI models"""
+    current = get_current_model()
+    return R.ok({
+        "models": AVAILABLE_MODELS,
+        "current": current,
+    })
+
+
+@router.get("/models/current")
+async def get_model(
+    current_admin: AdminUser = Depends(get_current_admin),
+):
+    """Get current AI model"""
+    return R.ok({"model": get_current_model()})
+
+
+@router.put("/models/current")
+async def update_model(
+    payload: dict,
+    current_admin: AdminUser = Depends(get_current_admin),
+):
+    """Set current AI model"""
+    model_id = payload.get("model")
+    if not model_id:
+        raise HTTPException(status_code=400, detail="model is required")
+
+    valid_ids = [m["id"] for m in AVAILABLE_MODELS]
+    if model_id not in valid_ids:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid model. Available: {', '.join(valid_ids)}"
+        )
+
+    set_current_model(model_id)
+
+    # Rebuild agents with new model
+    from adk_agents import rebuild_agents
+    rebuild_agents()
+
+    return R.ok({"model": model_id})
+
+
 # ==================== Post Management ====================
 
 @router.get("/posts")
 async def list_posts(
     skip: int = 0,
     limit: int = 20,
+    language: Optional[str] = None,
     current_admin: AdminUser = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    """List all posts"""
-    posts = db.query(Post).offset(skip).limit(limit).all()
-    total = db.query(Post).count()
+    """List all posts, optionally filtered by language"""
+    query = db.query(Post)
+    if language:
+        query = query.filter(Post.language == language)
+    posts = query.offset(skip).limit(limit).all()
+    total = query.count()
 
     post_list = []
     for post in posts:
@@ -265,6 +361,7 @@ async def list_posts(
             title=post.title,
             content=post.content,
             tags=tags,
+            language=post.language or "zh-CN",
             created_at=post.created_at,
             updated_at=post.updated_at,
             is_active=post.is_active
@@ -285,7 +382,8 @@ async def create_post(
         id=str(uuid.uuid4()),
         title=post_data.title,
         content=post_data.content,
-        tags=",".join(post_data.tags) if post_data.tags else None
+        tags=",".join(post_data.tags) if post_data.tags else None,
+        language=post_data.language,
     )
 
     db.add(post)
@@ -300,7 +398,8 @@ async def create_post(
             id=post.id,
             title=post.title,
             content=post.content,
-            tags=post_data.tags
+            tags=post_data.tags,
+            language=post_data.language,
         )
         _knowledge_base.add_post(kb_post)
     except Exception as e:
@@ -311,6 +410,7 @@ async def create_post(
         title=post.title,
         content=post.content,
         tags=post_data.tags,
+        language=post.language or "zh-CN",
         created_at=post.created_at,
         updated_at=post.updated_at,
         is_active=post.is_active
@@ -335,6 +435,7 @@ async def get_post(
         title=post.title,
         content=post.content,
         tags=tags,
+        language=post.language or "zh-CN",
         created_at=post.created_at,
         updated_at=post.updated_at,
         is_active=post.is_active
@@ -362,6 +463,8 @@ async def update_post(
         post.tags = ",".join(post_data.tags) if post_data.tags else None
     if post_data.is_active is not None:
         post.is_active = post_data.is_active
+    if post_data.language is not None:
+        post.language = post_data.language
 
     post.updated_at = datetime.utcnow()
     db.commit()
@@ -381,6 +484,7 @@ async def update_post(
         title=post.title,
         content=post.content,
         tags=tags,
+        language=post.language or "zh-CN",
         created_at=post.created_at,
         updated_at=post.updated_at,
         is_active=post.is_active

@@ -37,6 +37,7 @@ except ImportError:
 from google.adk.agents import Agent
 from google.adk.tools import BaseTool
 from pydantic import BaseModel, Field
+from database import get_current_model
 
 
 # ==================== Data Models ====================
@@ -47,6 +48,7 @@ class Post(BaseModel):
     title: str
     content: str
     tags: List[str] = Field(default_factory=list)
+    language: str = "zh-CN"
     created_at: Optional[str] = None
 
 
@@ -155,6 +157,7 @@ class KnowledgeBase:
                             title=db_post.title,
                             content=db_post.content,
                             tags=tags,
+                            language=db_post.language or "zh-CN",
                             created_at=db_post.created_at.isoformat() if db_post.created_at else None
                         )
                         self.posts[post.id] = post
@@ -214,17 +217,18 @@ class KnowledgeBase:
         if self.embeddings and self.vector_store:
             self._add_post_to_vector_store(post)
     
-    def search_posts(self, query: str, top_k: int = 3) -> List[SearchResult]:
+    def search_posts(self, query: str, top_k: int = 3, language: Optional[str] = None) -> List[SearchResult]:
         """
         Search posts using RAG (vector embeddings)
-        
+
         Args:
             query: Search query
             top_k: Number of results to return
-        
+            language: Optional language filter (e.g. "zh-CN", "en")
+
         Returns:
             List of search results with relevance scores
-        
+
         Raises:
             RuntimeError: If RAG is not properly initialized
         """
@@ -232,23 +236,27 @@ class KnowledgeBase:
             raise RuntimeError(
                 "Vector store is not initialized. RAG requires a properly initialized vector store."
             )
-        return self._search_with_rag(query, top_k)
+        return self._search_with_rag(query, top_k, language=language)
     
-    def _search_with_rag(self, query: str, top_k: int = 3) -> List[SearchResult]:
+    def _search_with_rag(self, query: str, top_k: int = 3, language: Optional[str] = None) -> List[SearchResult]:
         """
         RAG-based search using LangChain FAISS vector store
-        
+
         This is the core RAG implementation:
         1. Use FAISS similarity search to find relevant documents
-        2. Extract post information from search results
+        2. Optionally filter by language
         3. Return top-k most similar posts
         """
         try:
-            # Perform similarity search using FAISS
-            docs_with_scores = self.vector_store.similarity_search_with_score(query, k=top_k)
-            
+            # Fetch more candidates when filtering by language
+            fetch_k = top_k * 3 if language else top_k
+            docs_with_scores = self.vector_store.similarity_search_with_score(query, k=fetch_k)
+
             results = []
             for doc, score in docs_with_scores:
+                # Filter by language if specified
+                if language and doc.metadata.get('language', '') != language:
+                    continue
                 # Extract post_id from document metadata
                 post_id = doc.metadata.get('post_id')
                 if post_id and post_id in self.posts:
@@ -273,7 +281,9 @@ class KnowledgeBase:
                         matched_content=matched_content,
                         reason=reason
                     ))
-            
+                    if len(results) >= top_k:
+                        break
+
             return results
         except Exception as e:
             raise RuntimeError(f"RAG search failed: {e}. Please ensure RAG is properly configured.") from e
@@ -296,7 +306,8 @@ class KnowledgeBase:
                 metadata={
                     'post_id': post.id,
                     'title': post.title,
-                    'tags': ', '.join(post.tags) if post.tags else ''
+                    'tags': ', '.join(post.tags) if post.tags else '',
+                    'language': post.language,
                 }
             )
             documents.append(doc)
@@ -325,7 +336,8 @@ class KnowledgeBase:
                 metadata={
                     'post_id': post.id,
                     'title': post.title,
-                    'tags': ', '.join(post.tags) if post.tags else ''
+                    'tags': ', '.join(post.tags) if post.tags else '',
+                    'language': post.language,
                 }
             )
             # Add document to existing vector store
@@ -349,20 +361,21 @@ class KnowledgeBase:
 _knowledge_base = KnowledgeBase(use_mysql=True)
 
 
-def search_knowledge_base(query: str, top_k: int = 3) -> Dict:
+def search_knowledge_base(query: str, top_k: int = 3, language: Optional[str] = None) -> Dict:
     """
     Search the knowledge base for relevant posts
-    
+
     This is a tool function that ADK agents can use
-    
+
     Args:
         query: Search query
         top_k: Number of results to return
-    
+        language: Optional language filter (e.g. "zh-CN", "en")
+
     Returns:
         Dictionary with search results
     """
-    results = _knowledge_base.search_posts(query, top_k)
+    results = _knowledge_base.search_posts(query, top_k, language=language)
     
     if not results:
         return {
@@ -434,7 +447,7 @@ def create_knowledge_base_agent() -> Agent:
         Agent instance configured for knowledge base queries
     """
     return Agent(
-        model='gemini-2.0-flash',
+        model=get_current_model(),
         name='knowledge_base_agent',
         description="A friendly knowledge assistant that has read all articles in the knowledge base and chats naturally with users.",
         instruction="""
@@ -486,19 +499,22 @@ def initialize_sample_posts():
             id="post_001",
             title="Python Virtual Environment Guide",
             content="Python virtual environments are essential tools for isolating project dependencies. Use 'python -m venv venv' to create a virtual environment, and 'source venv/bin/activate' to activate it. Virtual environments help avoid dependency conflicts between different projects.",
-            tags=["Python", "Virtual Environment", "Development Tools"]
+            tags=["Python", "Virtual Environment", "Development Tools"],
+            language="en"
         ),
         Post(
             id="post_002",
             title="FastAPI Quick Start",
             content="FastAPI is a modern, fast web framework. It's based on Python type hints and automatically generates API documentation. Use the @app.get() decorator to define routes, and it supports asynchronous request handling.",
-            tags=["FastAPI", "Python", "Web Development"]
+            tags=["FastAPI", "Python", "Web Development"],
+            language="en"
         ),
         Post(
             id="post_003",
             title="Google ADK Agent Development",
             content="Google ADK (Agent Development Kit) is a framework for building AI agents. It supports custom tools, plugins, and multi-agent systems. Use the Agent class to create agents, and run them through the Runner.",
-            tags=["Google ADK", "AI", "Agent Development"]
+            tags=["Google ADK", "AI", "Agent Development"],
+            language="en"
         )
     ]
     

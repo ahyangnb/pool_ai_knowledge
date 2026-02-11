@@ -13,7 +13,8 @@
       "Bash(uvicorn:*)",
       "Bash(curl:*)",
       "Bash(python init_db.py:*)",
-      "Bash(kill:*)"
+      "Bash(kill:*)",
+      "Bash(chmod:*)"
     ]
   }
 }

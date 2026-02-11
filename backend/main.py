@@ -15,7 +15,7 @@ from adk_agents import (
 )
 from admin_api import router as admin_router
 from web_api import router as web_router
-from database import init_db
+from database import init_db, sync_api_keys_to_env
 from models import R
 
 app = FastAPI(
@@ -105,6 +105,7 @@ async def startup_event():
     """Initialize database on startup"""
     try:
         init_db()
+        sync_api_keys_to_env()
         print("Database initialized successfully")
     except Exception as e:
         print(f"Warning: Database initialization failed: {e}")

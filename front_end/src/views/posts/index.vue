@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { getPosts } from '../../api/posts'
 
 const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const posts = ref([])
 const total = ref(0)
 const page = ref(1)
@@ -30,6 +30,10 @@ async function loadPosts() {
 
 onMounted(loadPosts)
 watch(page, loadPosts)
+watch(locale, () => {
+  page.value = 1
+  loadPosts()
+})
 </script>
 
 <template>

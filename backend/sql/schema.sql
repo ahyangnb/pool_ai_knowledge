@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS `posts` (
   `title`      VARCHAR(500) NOT NULL,
   `content`    TEXT         NOT NULL,
   `tags`       TEXT         DEFAULT NULL,
+  `language`   VARCHAR(10)  DEFAULT 'zh-CN' COMMENT 'zh-CN / en / ja / ko etc.',
   `created_at` DATETIME     DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `is_active`  TINYINT(1)   DEFAULT 1,
