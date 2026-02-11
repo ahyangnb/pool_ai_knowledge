@@ -5,7 +5,8 @@
       "Bash(CHOKIDAR_USEPOLLING=true npm run dev:*)",
       "Bash(grep:*)",
       "Bash(find:*)",
-      "Bash(npx vue-cli-service build:*)"
+      "Bash(npx vue-cli-service build:*)",
+      "Bash(ls:*)"
     ]
   }
 }
