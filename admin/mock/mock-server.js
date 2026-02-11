@@ -46,10 +46,15 @@ const responseFake = (url, type, respond) => {
 module.exports = app => {
   // parse app.body
   // https://expressjs.com/en/4x/api.html#req.body
-  app.use(bodyParser.json())
-  app.use(bodyParser.urlencoded({
-    extended: true
-  }))
+  // Skip body parsing for /api routes so proxy can forward them correctly
+  const jsonParser = bodyParser.json()
+  const urlencodedParser = bodyParser.urlencoded({ extended: true })
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      return next()
+    }
+    jsonParser(req, res, () => urlencodedParser(req, res, next))
+  })
 
   const mockRoutes = registerRoutes(app)
   var mockRoutesLength = mockRoutes.mockRoutesLength

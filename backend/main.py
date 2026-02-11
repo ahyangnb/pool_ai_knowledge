@@ -1,13 +1,14 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional, List
 from google.adk import Runner
 from google.adk.runners import types as runner_types
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from adk_agents import (
-    get_agent, 
-    list_agents, 
+    get_agent,
+    list_agents,
     example_calculator_usage,
     example_search_usage,
     example_multi_tool_usage
@@ -15,6 +16,7 @@ from adk_agents import (
 from admin_api import router as admin_router
 from web_api import router as web_router
 from database import init_db
+from models import R
 
 app = FastAPI(
     title="Pool AI Knowledge API",
@@ -34,6 +36,24 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ==================== Global Exception Handlers ====================
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=R.fail(code=exc.status_code, message=exc.detail),
+    )
+
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content=R.fail(code=500, message=str(exc)),
+    )
 
 
 # ==================== Request/Response Models 请求/响应模型 ====================
@@ -58,9 +78,8 @@ class ChatResponse(BaseModel):
 @app.get("/")
 async def root():
     """Root endpoint"""
-    return {
+    return R.ok({
         "message": "Welcome to Pool AI Knowledge API",
-        "description": "AI Knowledge Base API with Google ADK Agents, Admin Panel, and Web APIs",
         "version": "0.2.0",
         "endpoints": {
             "agents": "/api/agents",
@@ -70,7 +89,7 @@ async def root():
             "web": "/api/web",
             "docs": "/docs"
         }
-    }
+    })
 
 
 @app.on_event("startup")
@@ -86,20 +105,15 @@ async def startup_event():
 @app.get("/health")
 async def health_check():
     """Health check endpoint / 健康检查端点"""
-    return {"status": "healthy"}
+    return R.ok({"status": "healthy"})
 
 
 @app.get("/api/agents")
 async def get_available_agents():
-    """
-    Get list of available agents / 获取可用代理列表
-    
-    Returns:
-        List of agent names and descriptions / 代理名称和描述列表
-    """
+    """Get list of available agents / 获取可用代理列表"""
     agents = list_agents()
     agent_info = {}
-    
+
     for agent_name in agents:
         agent = get_agent(agent_name)
         if agent:
@@ -107,12 +121,8 @@ async def get_available_agents():
                 "name": agent.name,
                 "description": agent.description
             }
-    
-    return {
-        "status": "success",
-        "agents": agent_info,
-        "total": len(agents)
-    }
+
+    return R.ok({"agents": agent_info, "total": len(agents)})
 
 
 # Global runner instances for each agent / 每个代理的全局运行器实例
@@ -143,7 +153,7 @@ def get_runner(agent_name: str) -> Optional[Runner]:
     return _agent_runners[agent_name]
 
 
-@app.post("/api/chat", response_model=ChatResponse)
+@app.post("/api/chat")
 async def chat_with_agent(request: ChatRequest):
     """
     Chat with an ADK agent / 与 ADK 代理聊天
@@ -247,12 +257,12 @@ async def chat_with_agent(request: ChatRequest):
                 detail=f"Error running agent: {str(run_error)}\nDetails: {error_details[:500]}"
             )
         
-        return ChatResponse(
+        return R.ok(ChatResponse(
             agent_name=request.agent_name,
             message=request.message,
             response=response_text,
             status="success"
-        )
+        ).model_dump())
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -384,13 +394,14 @@ async def get_agent_examples(agent_name: str):
     }
     
     if agent_name in example_functions:
-        return await example_functions[agent_name]()
+        result = await example_functions[agent_name]()
+        return R.ok(result)
     else:
-        return {
+        return R.ok({
             "agent": agent_name,
             "description": agent.description,
             "note": "Use /api/chat endpoint to interact with this agent"
-        }
+        })
 
 
 @app.get("/api/agents/{agent_name}/info")
@@ -412,13 +423,13 @@ async def get_agent_info(agent_name: str):
             detail=f"Agent '{agent_name}' not found. Available agents: {', '.join(list_agents())}"
         )
     
-    return {
+    return R.ok({
         "name": agent.name,
         "description": agent.description,
         "model": agent.model,
         "tools_count": len(agent.tools) if hasattr(agent, 'tools') else 0,
         "tools": [tool.__name__ if hasattr(tool, '__name__') else str(tool) for tool in agent.tools] if hasattr(agent, 'tools') else []
-    }
+    })
 
 if __name__ == "__main__":
     import uvicorn

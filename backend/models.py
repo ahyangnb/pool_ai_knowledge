@@ -3,8 +3,25 @@ Pydantic models for API requests and responses
 """
 
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, List
+from typing import Any, Optional, List
 from datetime import datetime
+
+
+# ==================== Unified Response Wrapper ====================
+
+class R(BaseModel):
+    """Unified API response wrapper"""
+    code: int = 0
+    data: Any = None
+    message: str = "success"
+
+    @staticmethod
+    def ok(data: Any = None, message: str = "success") -> dict:
+        return {"code": 0, "data": data, "message": message}
+
+    @staticmethod
+    def fail(code: int = -1, message: str = "error", data: Any = None) -> dict:
+        return {"code": code, "data": data, "message": message}
 
 
 # ==================== Post Models ====================
