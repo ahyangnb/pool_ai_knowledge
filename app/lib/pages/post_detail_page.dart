@@ -24,7 +24,7 @@ class PostDetailPage extends ConsumerWidget {
 
     return postAsync.when(
       loading: () => const LoadingIndicator(),
-      error: (_, __) => EmptyState(message: s.detailNotFound),
+      error: (_, _) => EmptyState(message: s.detailNotFound),
       data: (post) {
         final dateStr = post.createdAt != null
             ? DateFormat('yyyy-MM-dd').format(post.createdAt!)
@@ -108,7 +108,7 @@ class PostDetailPage extends ConsumerWidget {
                   ),
                   blockquotePadding: const EdgeInsets.only(left: 16),
                 ),
-                onTapLink: (_, href, __) {
+                onTapLink: (_, href, _) {
                   if (href != null) launchUrl(Uri.parse(href));
                 },
               ),
