@@ -3,7 +3,9 @@
     "allow": [
       "Bash(npm install:*)",
       "Bash(CHOKIDAR_USEPOLLING=true npm run dev:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(npx vue-cli-service build:*)"
     ]
   }
 }
