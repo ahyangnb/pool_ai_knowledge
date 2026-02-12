@@ -1,7 +1,7 @@
 class AppConfig {
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:8000',
+    defaultValue: 'http://192.168.155.23:8000',
   );
 
   static const int homePostsLimit = 6;
