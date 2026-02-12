@@ -1,3 +1,15 @@
+<p align="center">
+  <img src="git/logo.png" alt="Pool AI Knowledge Logo" width="120">
+</p>
+
+<p align="center">
+  <img src="git/banner_english.png" alt="Pool AI Knowledge Banner">
+</p>
+
+<p align="center">
+  <img src="git/banner_chinise.png" alt="Pool AI Knowledge 横幅">
+</p>
+
 # Pool AI Knowledge
 
 An open-source AI knowledge base system with RAG (Retrieval-Augmented Generation) capabilities. It provides a full-stack solution including a Python backend, a Vue admin dashboard, and cross-platform clients for Web, Desktop (Windows/macOS/Linux), and Mobile (Android/iOS).
