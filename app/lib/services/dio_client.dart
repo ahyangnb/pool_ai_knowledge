@@ -16,6 +16,15 @@ class DioClient {
       receiveTimeout: const Duration(seconds: 30),
     ));
 
+    dio.interceptors.add(LogInterceptor(
+      request: true,
+      requestHeader: true,
+      requestBody: true,
+      responseHeader: true,
+      responseBody: true,
+      error: true,
+    ));
+
     dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) {
         if (options.method == 'GET') {
