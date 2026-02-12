@@ -19,7 +19,9 @@ An open-source AI knowledge base system with RAG (Retrieval-Augmented Generation
 > **Status / 状态:** Under active development / 积极开发中
 
 ## About author / 关于作者
+
 微信（wechat）：q1666655
+
 邮箱（email）：zonggeu@gmail.com
 
 ## Screenshots / 截图
